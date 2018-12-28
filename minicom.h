@@ -96,7 +96,41 @@ template<class T, class C> class rc {
 template<class T> using atomic_rc = rc<T, std::atomic<std::size_t>>;
 template<class T> using basic_rc = rc<T, std::size_t>;
 
+template<class C, class... Is> struct downcast_to;
+
+template<class C, class I, class... Is> struct downcast_to<C, I, Is...>
+        : public downcast_to<C, Is...> {
+    i_miniobj* downcast(const char* iname) noexcept
+    {
+        if (std::strcmp(minicom::interface_name<I>, iname) == 0) {
+            auto p = static_cast<I*>(static_cast<C*>(this));
+            p->add_ref();
+            return p;
+        }
+
+        return downcast_to<C, Is...>::downcast(iname);
+    }
+};
+
+template<class C> struct downcast_to<C> {
+    i_miniobj* downcast(const char*) noexcept { return nullptr; }
+};
+
 MINIEXPORTDEF(i_miniobj*, minicom_factory_t, const char*);
+
+template<class... Cs> struct factory_for;
+
+template<class C, class... Cs> struct factory_for<C, Cs...> {
+    static i_miniobj* construct(const char* klass) noexcept
+    {
+        TRY_CONSTRUCT(C, klass);
+        return factory_for<Cs...>::construct(klass);
+    }
+};
+
+template<> struct factory_for<> {
+    static i_miniobj* construct(const char*) noexcept { return nullptr; }
+};
 
 class module {
   public:
