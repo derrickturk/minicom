@@ -21,28 +21,34 @@
         return new (std::nothrow) klass;
 
 #ifdef __clang__
-#define MINIEXPORT(ret, fn, ...) \
+#define MINIEXPORTFN(ret, fn, ...) \
     extern "C" [[gnu::cdecl, gnu::dllexport]] ret fn(__VA_ARGS__) noexcept
-#define MINIEXPORTDEF(ret, fn, ...) \
+#define MINIEXPORTFNDEF(ret, fn, ...) \
     extern "C" [[gnu::cdecl]] typedef ret (*fn)(__VA_ARGS__) noexcept
+#define MINIEXPORTDATA extern "C" [[gnu::dllexport]]
+#define MINIEXPORTDATADEF extern "C" typedef
 #define MINIMETHOD(ret, fn, ...) \
     [[gnu::cdecl]] virtual ret fn(__VA_ARGS__) noexcept = 0
 #define MINIMETHODIMPL(ret, fn, ...) ret fn(__VA_ARGS__) noexcept
 
 #elif defined(__GNUC__)
-#define MINIEXPORT(ret, fn, ...) \
+#define MINIEXPORTFN(ret, fn, ...) \
     extern "C" [[gnu::cdecl, gnu::dllexport]] ret fn(__VA_ARGS__) noexcept
-#define MINIEXPORTDEF(ret, fn, ...) \
+#define MINIEXPORTFNDEF(ret, fn, ...) \
     extern "C" [[gnu::cdecl]] typedef ret (*fn)(__VA_ARGS__) noexcept
+#define MINIEXPORTDATA extern "C" [[gnu::dllexport]]
+#define MINIEXPORTDATADEF extern "C" typedef
 #define MINIMETHOD(ret, fn, ...) \
     [[gnu::cdecl]] virtual ret fn(__VA_ARGS__) noexcept = 0
 #define MINIMETHODIMPL(ret, fn, ...) ret fn(__VA_ARGS__) noexcept
 
 #elif defined(_MSC_VER)
-#define MINIEXPORT(ret, fn, ...) \
+#define MINIEXPORTFN(ret, fn, ...) \
     extern "C" __declspec(dllexport) ret __cdecl fn(__VA_ARGS__) noexcept
-#define MINIEXPORTDEF(ret, fn, ...) \
+#define MINIEXPORTFNDEF(ret, fn, ...) \
     extern "C" typedef ret __cdecl (*fn)(__VA_ARGS__) noexcept
+#define MINIEXPORTDATA extern "C" __declspec(dllexport)
+#define MINIEXPORTDATADEF extern "C" typedef
 #define MINIMETHOD(ret, fn, ...) \
     virtual ret __cdecl fn(__VA_ARGS__) noexcept = 0
 #define MINIMETHODIMPL(ret, fn, ...) ret fn(__VA_ARGS__) noexcept
@@ -116,7 +122,9 @@ template<class C> struct downcast_to<C> {
     i_miniobj* downcast(const char*) noexcept { return nullptr; }
 };
 
-MINIEXPORTDEF(i_miniobj*, minicom_factory_t, const char*);
+MINIEXPORTFNDEF(i_miniobj*, factory_t, const char*);
+MINIEXPORTDATADEF const char* class_list_t[];
+MINIEXPORTDATADEF std::size_t class_count_t;
 
 template<class... Cs> struct factory_for;
 
@@ -135,21 +143,29 @@ template<> struct factory_for<> {
 class module {
   public:
     module(const char* path) noexcept
-        : dll_(), factory_()
+        : dll_(), factory_(), class_list_(), class_count_()
     {
         if (auto hmodule = LoadLibrary(path)) {
             dll_ = std::shared_ptr<std::remove_pointer_t<HMODULE>>(
                     hmodule, &FreeLibrary);
-            factory_ = reinterpret_cast<minicom::minicom_factory_t>(
+            factory_ = reinterpret_cast<factory_t>(
                     GetProcAddress(dll_.get(), "minicom_factory"));
-            if (!factory_)
+            class_list_ = reinterpret_cast<class_list_t*>(
+                    GetProcAddress(dll_.get(), "minicom_class_list"));
+            class_count_ = reinterpret_cast<class_count_t*>(
+                    GetProcAddress(dll_.get(), "minicom_class_count"));
+            if (!factory_ || !class_list_ || !class_count_)
                 dll_ = nullptr;
         }
     }
 
     explicit operator bool() noexcept { return static_cast<bool>(dll_); }
 
-    minicom_factory_t factory() noexcept { return factory_; }
+    factory_t factory() noexcept { return factory_; }
+
+    const class_list_t& class_list() noexcept { return *class_list_; }
+
+    class_count_t class_count() noexcept { return *class_count_; }
 
     i_miniobj* make_class(const char* klass) noexcept
     {
@@ -171,7 +187,9 @@ class module {
 
   private:
     std::shared_ptr<std::remove_pointer_t<HMODULE>> dll_;
-    minicom_factory_t factory_;
+    factory_t factory_;
+    class_list_t* class_list_;
+    class_count_t* class_count_;
 };
 
 }

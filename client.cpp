@@ -19,16 +19,21 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    i_adder *adder = lib.make_class_as<i_adder>("adder");
-    if (!adder) {
-        std::cerr << "can't get adder\n";
-        return 0;
-    }
+    for (minicom::class_count_t i = 0; i < lib.class_count(); ++i) {
+        auto klass = lib.class_list()[i];
+        std::cout << "using class: " << klass << '\n';
 
-    adder->set_augend(17);
-    std::cout << "augend is " << adder->get_augend() << '\n';
-    std::cout << "adder->add(5) = " << adder->add(5) << '\n';
-    adder->release_ref();
+        i_adder *adder = lib.make_class_as<i_adder>(klass);
+        if (!adder) {
+            std::cerr << "can't get i_adder for " << klass << '\n';
+            return 0;
+        }
+
+        adder->set_augend(17);
+        std::cout << "augend is " << adder->get_augend() << '\n';
+        std::cout << "adder->add(5) = " << adder->add(5) << '\n';
+        adder->release_ref();
+    }
 
     return 0;
 }

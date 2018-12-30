@@ -1,5 +1,7 @@
 #include "server.h"
 
+#include <array>
+
 class adder : public i_adder,
               public minicom::atomic_rc<adder>,
               public minicom::downcast_to<adder, minicom::i_miniobj, i_adder> {
@@ -47,7 +49,14 @@ class adder : public i_adder,
 
 REGISTER_CLASS(adder);
 
-MINIEXPORT(minicom::i_miniobj*, minicom_factory, const char *klass)
+MINIEXPORTFN(minicom::i_miniobj*, minicom_factory, const char *klass)
 {
     return minicom::factory_for<adder>::construct(klass);
 }
+
+MINIEXPORTDATA minicom::class_list_t minicom_class_list = {
+    minicom::class_name<adder>,
+};
+
+MINIEXPORTDATA minicom::class_count_t minicom_class_count =
+    sizeof(minicom_class_list) / sizeof(minicom_class_list[0]);
